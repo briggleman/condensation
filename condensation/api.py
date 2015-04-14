@@ -20,16 +20,16 @@ import re
 DOMAIN = 'http://api.steampowered.com/'
 
 # Steam API paths
-API_PATHS = {'get_news_for_app': '%sISteamNews/GetNewsForApp/v0002/?appid=%s&count=%d&maxlength=%d&format=%s',
-             'get_global_achievement_pct': '%sISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?gameid=%s&format=%s',
-             'get_global_stats_for_game': '%sISteamUserStats/GetGlobalStatsForGame/v0001/?appid=%s&count=%d&name[%d]=%s&format=%s',
+API_PATHS = {'get_news_for_app': '%sISteamNews/GetNewsForApp/v0002/',
+             'get_global_achievement_pct': '%sISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/',
+             'get_global_stats_for_game': '%sISteamUserStats/GetGlobalStatsForGame/v0001/',
              'get_player_summaries': '%sISteamUser/GetPlayerSummaries/v0002/',
              'get_friend_list': '%sISteamUser/GetFriendList/v0001/',
-             'get_player_achievements': '%sISteamUserStats/GetPlayerAchievements/v0001/?key=%s&appid=%s&steamid=%s',
-             'get_user_stats_for_game': '%sISteamUserStats/GetUserStatsForGame/v0002/?key=%s&appid=%s&steamid=%s',
+             'get_player_achievements': '%sISteamUserStats/GetPlayerAchievements/v0001/',
+             'get_user_stats_for_game': '%sISteamUserStats/GetUserStatsForGame/v0002/',
              'get_owned_games': '%sIPlayerService/GetOwnedGames/v0001/',
-             'get_recently_played_games': '%sIPlayerService/GetRecentlyPlayedgames/v0001/?key=%s&steamid=%s&format=%s',
-             'is_playing_shared_game': '%sIPlayerService/IsPlayingSharedGame/v0001/?key=%s&appid_playing=%s&steamid=%s&format=%s',
+             'get_recently_played_games': '%sIPlayerService/GetRecentlyPlayedgames/v0001/',
+             'is_playing_shared_game': '%sIPlayerService/IsPlayingSharedGame/v0001/',
              'resolve_vanity_url': '%sISteamUser/ResolveVanityURL/v0001/'}
 
 VANITY_URL = re.compile('(?<=http://steamcommunity.com/id/)([0-9a-zA-Z_]*)')
@@ -46,7 +46,62 @@ ONLINE_STATE = {
 }
 
 
-def get_player_summaries(apikey, sids):
+def news(appid, **kwargs):
+    """
+    Returns the latest news for a game specified by its appid
+    :param appid: appid of the game you want the news of
+    :param count: how many news entities you want to get returned
+    :param maxlength: maximum length of each news entry
+    :return: appid, newsitems
+    """
+    params = {
+        'appid': appid,
+        'count': kwargs.pop('count', 1),
+        'maxlength': kwargs.pop('maxlength', 1000)
+    }
+
+    url = API_PATHS['get_news_for_app'] % DOMAIN
+    request = requests.get(url, params=params)
+
+    if request.status_code == 200:
+        data = json.loads(request.text)
+
+        values = {
+            'appid': data['appnews']['appid'],
+            'newsitems': data['appnews']['newsitems']
+        }
+
+        return values
+    else:
+        return None
+
+
+def global_achievements(appid):
+    """
+    Returns global achievements overview of a specific game in percentages
+    :param appid: appid of the game you want the achievements for
+    :return:
+    """
+
+    params = {
+        'gameid': appid
+    }
+
+    url = API_PATHS['get_global_achievement_pct'] % DOMAIN
+    request = requests.get(url, params=params)
+
+    if request.status_code == 200:
+        data = json.loads(request.text)
+
+        return data['achievementpercentages']['achievements']
+    else:
+        request.status_code
+
+
+#todo implement GetGlobalStatsForGame
+
+
+def summaries(apikey, sids):
     """
     Retrieves the players steam info
     :param sids: steam id 64 or list of steam id 64's
@@ -107,36 +162,7 @@ def get_player_summaries(apikey, sids):
         return steaminfo
 
 
-def resolve_vanity_url(apikey, url):
-    """
-    Retrieves the steam id from a steam vanity url
-    :param apikey: steam api key
-    :param url: steam users vanity url (i.e. http://steamcommunity.com/id/gabelogannewell)
-    :return: users steam id 64 (i.e. 76561197960287930)
-    """
-    # grabs the persona from the steam vanity url
-    persona = re.search(VANITY_URL, url).group()
-
-    params = {
-        'key': apikey,
-        'vanityurl': persona
-    }
-
-    url = API_PATHS['resolve_vanity_url'] % DOMAIN
-    request = requests.get(url, params=params)
-
-    if request.status_code == 200:
-        data = json.loads(request.text)
-
-        if data['response']['success'] == 1:
-            result = data['response']['steamid']
-
-            return result
-        else:
-            return None
-
-
-def get_friend_list(apikey, steamid,  **kwargs):
+def friends(apikey, steamid,  **kwargs):
     """
     Returns the users friends list
     :param steamid: steam id 64 of the user to retrieve friends for
@@ -154,14 +180,77 @@ def get_friend_list(apikey, steamid,  **kwargs):
 
     if request.status_code == 200:
         data = json.loads(request.text)
-        friends = data['friendslist']['friends']
 
-        return friends
+        return data['friendslist']['friends']
     else:
-        return None
+        return request.status_code
 
 
-def get_owned_games(apikey, steamid, **kwargs):
+def achievements(apikey, steamid, appid, **kwargs):
+    """
+    Returns a list of achievements for this user by appid
+    :param apikey: steam web api key
+    :param steamid: 64 bit steam id to return achievements for
+    :param appid: the id for the game your requesting
+    :param language: if specified, will return language data for the requested language
+    :return: achievements
+    """
+    params = {
+        'key': apikey,
+        'steamid': steamid,
+        'appid': appid,
+        'l': kwargs.pop('language', 'en')
+    }
+
+    url = API_PATHS['get_player_achievements'] % DOMAIN
+    request = requests.get(url, params=params)
+
+    if request.status_code == 200:
+        data = json.loads(request.text)
+        values = {
+            'steamid': data['playerstats']['steamID'],
+            'game': data['playerstats']['gameName'],
+            'achievements': data['playerstats']['achievements']
+        }
+
+        return values
+    else:
+        return request.status_code
+
+
+def user_stats(apikey, steamid, appid, **kwargs):
+    """
+    Returns a list of achievements for this user by appid
+    :param apikey: steam web api key
+    :param steamid: 64 bit steam id to return achievements for
+    :param appid: the id for the game your requesting
+    :param language: if specified, will return language data for the requested language
+    :return: achievements
+    """
+    params = {
+        'key': apikey,
+        'steamid': steamid,
+        'appid': appid,
+        'l': kwargs.pop('language', 'en')
+    }
+
+    url = API_PATHS['get_user_stats_for_game'] % DOMAIN
+    request = requests.get(url, params=params)
+
+    if request.status_code == 200:
+        data = json.loads(request.text)
+        values = {
+            'steamid': data['playerstats']['steamID'],
+            'game': data['playerstats']['gameName'],
+            'stats': data['playerstats']['stats']
+        }
+
+        return values
+    else:
+        return request.status_code
+
+
+def owned_games(apikey, steamid, **kwargs):
     """
     Retrieves the user(s) list of owned games
     :param sids: steam id 64, list of steam id 64's
@@ -189,9 +278,9 @@ def get_owned_games(apikey, steamid, **kwargs):
 
         return values
     else:
-        return None
+        return request.status_code
 
-def get_wishlist_games(self, wurl):
+def wishlist_games(self, wurl):
     """
     Takes a users steam id profile url and returns their wishlist, count of games in their wishlist and
     number of games on sale
@@ -246,3 +335,31 @@ def get_wishlist_games(self, wurl):
         wished.append(values)
 
     return wished, count, sale
+
+def vanity_url(apikey, url):
+    """
+    Retrieves the steam id from a steam vanity url
+    :param apikey: steam api key
+    :param url: steam users vanity url (i.e. http://steamcommunity.com/id/gabelogannewell)
+    :return: users steam id 64 (i.e. 76561197960287930)
+    """
+    # grabs the persona from the steam vanity url
+    persona = re.search(VANITY_URL, url).group()
+
+    params = {
+        'key': apikey,
+        'vanityurl': persona
+    }
+
+    url = API_PATHS['resolve_vanity_url'] % DOMAIN
+    request = requests.get(url, params=params)
+
+    if request.status_code == 200:
+        data = json.loads(request.text)
+
+        if data['response']['success'] == 1:
+            result = data['response']['steamid']
+
+            return result
+        else:
+            return None
