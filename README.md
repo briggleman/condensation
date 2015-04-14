@@ -1,4 +1,4 @@
-# steamed [![Build Status](https://travis-ci.org/briggleman/condensation.svg?branch=master)](https://travis-ci.org/briggleman/condensation)
+# condensation [![Build Status](https://travis-ci.org/briggleman/condensation.svg?branch=master)](https://travis-ci.org/briggleman/condensation)
 
 Python Steam API Wrapper
 
