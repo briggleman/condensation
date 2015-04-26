@@ -5,4 +5,4 @@ __license__ = 'Apache 2.0'
 __copyright__ = 'Copyright 2015 Ben Riggleman'
 
 from . import utils
-from api import SteamAPI
+from .api import SteamAPI
